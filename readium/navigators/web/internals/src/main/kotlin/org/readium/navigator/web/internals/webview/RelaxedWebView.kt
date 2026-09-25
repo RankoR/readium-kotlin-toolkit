@@ -141,12 +141,16 @@ private class CallbackDecorator(
  * has received data up-to-date at the moment when the call occurs or newer.
  */
 public fun RelaxedWebView.invokeOnWebViewUpToDate(block: WebView.() -> Unit) {
-    if (verticalScrollExtent > 0 && horizontalScrollExtent > 0) {
+    invokeOnWebViewUpToDate(retryCount = 10, block = block)
+}
+
+private fun RelaxedWebView.invokeOnWebViewUpToDate(retryCount: Int, block: WebView.() -> Unit) {
+    if (!isAttachedToWindow || (verticalScrollExtent > 0 && horizontalScrollExtent > 0) || retryCount <= 0) {
         invokeOnReadyToBeDrawn(block)
     } else {
         requestLayout()
         setNextLayoutListener {
-            invokeOnWebViewUpToDate(block)
+            invokeOnWebViewUpToDate(retryCount - 1, block)
         }
     }
 }
