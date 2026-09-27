@@ -130,7 +130,7 @@ public class DefaultHttpClient(
     override suspend fun stream(request: HttpRequest): HttpTry<HttpStreamResponse> {
         suspend fun tryStream(request: HttpRequest): HttpTry<HttpStreamResponse> =
             withContext(Dispatchers.IO) {
-                Timber.i("HTTP ${request.method.name} ${request.url}, headers: ${request.headers}")
+                Timber.i("HTTP ${request.method.name} ${request.url}, headers: ${request.headers.redacted()}")
 
                 try {
                     var connection = request.toHttpURLConnection()
@@ -154,7 +154,12 @@ public class DefaultHttpClient(
 
                         val mediaType = connection.contentType?.let { MediaType(it) }
                         return@withContext Try.failure(
-                            HttpError.ErrorResponse(HttpStatus(statusCode), mediaType, body)
+                            HttpError.ErrorResponse(
+                                status = HttpStatus(statusCode),
+                                mediaType = mediaType,
+                                body = body,
+                                headers = connection.safeHeaders
+                            )
                         )
                     }
 
@@ -291,6 +296,18 @@ public class DefaultHttpClient(
 
         return connection
     }
+
+    /** Hides credentials, which must not end up in the logs. */
+    private fun Map<String, List<String>>.redacted(): Map<String, List<String>> =
+        mapValues { (name, values) ->
+            if (name.equals("Authorization", ignoreCase = true) ||
+                name.equals("Proxy-Authorization", ignoreCase = true)
+            ) {
+                values.map { "<redacted>" }
+            } else {
+                values
+            }
+        }
 
     private val HttpURLConnection.safeHeaders: Map<String, List<String>> get() =
         headerFields.filterNot { (key, value) ->

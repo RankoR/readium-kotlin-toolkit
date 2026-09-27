@@ -58,12 +58,20 @@ public sealed class HttpError(
      * @param status HTTP status code.
      * @param mediaType Response media type.
      * @param body Response body.
+     * @param headers Response headers, e.g. the WWW-Authenticate challenge of a 401 response.
      */
     public class ErrorResponse(
         public val status: HttpStatus,
         public val mediaType: MediaType? = null,
         public val body: ByteArray? = null,
+        public val headers: Map<String, List<String>> = emptyMap(),
     ) : HttpError("HTTP Error ${status.code}", null) {
+
+        /** The value of the response header [name], case-insensitively. */
+        public fun header(name: String): List<String> =
+            headers.entries
+                .filter { (key, _) -> key.equals(name, ignoreCase = true) }
+                .flatMap { (_, values) -> values }
 
         /** Response body parsed as a JSON problem details. */
         public val problemDetails: ProblemDetails? by lazy {
