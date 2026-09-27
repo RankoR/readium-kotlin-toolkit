@@ -255,8 +255,8 @@ internal fun ReflowableResource(
                         resourceState.pendingLocation
                     }.onEach { pendingLocation ->
                         pendingLocation?.let {
-                            showPlaceholder.value = true
-
+                            // The placeholder is only shown until the initial position is settled: hiding the
+                            // content for every move made the page flash, e.g. once per utterance while reading aloud
                             when (pendingLocation) {
                                 is ReflowableResourceLocation.Progression -> {
                                     scrollController.moveToProgression(
