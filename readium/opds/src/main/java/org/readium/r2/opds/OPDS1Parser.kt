@@ -166,11 +166,22 @@ public class OPDS1Parser {
             }
             // Parse links
             for (link in root.get("link", Namespaces.Atom)) {
-                val hrefAttr = link.getAttr("href")?.let { Url(it) } ?: continue
-                val href = feed.href.resolve(hrefAttr)
+                val hrefString = link.getAttr("href") ?: continue
                 val title = link.getAttr("title")
                 val type = link.getAttr("type")?.let { MediaType(it) }
                 val rels = listOfNotNull(link.getAttr("rel")).toSet()
+
+                // A search link can be a URL template rather than an OpenSearch description (e.g. Calibre's content
+                // server links /opds/search/{searchTerms}), and a template isn't a valid URL
+                if ("search" in rels && '{' in hrefString) {
+                    resolveTemplate(feed.href, hrefString)?.let { href ->
+                        feed.links.add(Link(href = href, mediaType = type, title = title, rels = rels))
+                    }
+                    continue
+                }
+
+                val hrefAttr = Url(hrefString) ?: continue
+                val href = feed.href.resolve(hrefAttr)
 
                 val facetGroupName = link.getAttrNs("facetGroup", Namespaces.Opds)
                 if (facetGroupName != null && rels.contains("http://opds-spec.org/facet")) {
@@ -195,6 +206,21 @@ public class OPDS1Parser {
             }
             return feed.build()
         }
+
+        /**
+         * Resolves the URL [template] against [base], keeping its {parameters}.
+         */
+        private fun resolveTemplate(base: Url, template: String): Href? {
+            val encodedTemplate = Url(template.replace("{", "%7B").replace("}", "%7D")) ?: return null
+            val resolved = base.resolve(encodedTemplate).toString()
+                .replace(ENCODED_OPENING_BRACE, "{")
+                .replace(ENCODED_CLOSING_BRACE, "}")
+
+            return Href(resolved, templated = true)
+        }
+
+        private val ENCODED_OPENING_BRACE = Regex("%7B", RegexOption.IGNORE_CASE)
+        private val ENCODED_CLOSING_BRACE = Regex("%7D", RegexOption.IGNORE_CASE)
 
         private fun parseMimeType(mimeTypeString: String): MimeTypeParameters {
             val substrings = mimeTypeString.split(";")
@@ -223,6 +249,10 @@ public class OPDS1Parser {
                         selfMimeType = link.mediaType
                     }
                 } else if (link.rels.contains("search")) {
+                    // A templated search link is the search URL template itself
+                    if (link.href.isTemplated) {
+                        return Try.success(link.href.toString())
+                    }
                     openSearchURL = link.href
                 }
             }

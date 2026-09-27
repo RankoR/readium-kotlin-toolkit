@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/terms/" xmlns:opds="http://opds-spec.org/2010/catalog">
+  <title>calibre Library</title>
+  <subtitle>Books in your library</subtitle>
+  <id>urn:calibre:main</id>
+  <updated>2026-09-27T21:19:45+00:00</updated>
+  <link type="application/atom+xml" rel="search" title="Search" href="/opds/search/{searchTerms}?library_id=library"/>
+  <link type="application/atom+xml;type=feed;profile=opds-catalog" rel="start" href="/opds?library_id=library"/>
+  <entry>
+    <title>By Title</title>
+    <id>calibre-navcatalog:08f756e519fd33ae24cdb50765cf6600a36cdf0f</id>
+    <updated>2026-09-27T21:19:45+00:00</updated>
+    <content type="text">Books sorted by Title</content>
+    <link type="application/atom+xml;type=feed;profile=opds-catalog" href="/opds/navcatalog/4f7469746c65?library_id=library"/>
+  </entry>
+</feed>

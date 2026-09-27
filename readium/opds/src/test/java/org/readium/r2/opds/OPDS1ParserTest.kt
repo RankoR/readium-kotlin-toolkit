@@ -2,6 +2,7 @@
 
 package org.readium.r2.opds
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -367,6 +368,18 @@ class OPDS1ParserTest {
                 )
             ).toJSON(),
             publication!!.manifest.toJSON()
+        )
+    }
+
+    @Test fun `a templated search link is the search URL template`() {
+        val feed = parse("calibre-root.atom", Url("http://localhost:8080/opds")!!).feed!!
+
+        val template = runBlocking { OPDS1Parser.retrieveOpenSearchTemplate(feed) }.getOrNull()
+
+        assertEquals("http://localhost:8080/opds/search/{searchTerms}?library_id=library", template)
+        assertEquals(
+            Url("http://localhost:8080/opds/navcatalog/4f7469746c65?library_id=library"),
+            feed.navigation.single().url()
         )
     }
 
