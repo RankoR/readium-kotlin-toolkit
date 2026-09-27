@@ -26,6 +26,14 @@ import org.readium.r2.shared.publication.Subject
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.mediatype.MediaType
 import org.robolectric.RobolectricTestRunner
+import org.readium.r2.shared.util.http.HttpTry
+import org.readium.r2.shared.util.http.HttpStreamResponse
+import org.readium.r2.shared.util.http.HttpStatus
+import org.readium.r2.shared.util.http.HttpResponse
+import org.readium.r2.shared.util.http.HttpRequest
+import org.readium.r2.shared.util.http.HttpClient
+import org.readium.r2.shared.util.Try
+import java.io.ByteArrayInputStream
 
 @RunWith(RobolectricTestRunner::class)
 class OPDS1ParserTest {
@@ -381,6 +389,55 @@ class OPDS1ParserTest {
             Url("http://localhost:8080/opds/navcatalog/4f7469746c65?library_id=library"),
             feed.navigation.single().url()
         )
+    }
+
+    @Test fun `the OpenSearch template for feed results is found`() {
+        val template = retrieveGutenbergTemplate(
+            selfType = "application/atom+xml;profile=opds-catalog"
+        )
+
+        assertEquals("http://m.gutenberg.org/ebooks/search.opds/?query={searchTerms}", template)
+    }
+
+    @Test fun `without the feed's own type the OpenSearch template for Atom results is found`() {
+        val template = retrieveGutenbergTemplate(selfType = null)
+
+        assertEquals("http://m.gutenberg.org/ebooks/search.opds/?query={searchTerms}", template)
+    }
+
+    private fun retrieveGutenbergTemplate(selfType: String?): String? {
+        val selfLink = selfType
+            ?.let { "<link rel=\"self\" type=\"$it\" href=\"/ebooks/search.opds/\"/>" }
+            .orEmpty()
+        val feedXml = """
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <title>All Books</title>
+              <id>http://www.gutenberg.org/ebooks/search.opds/</id>
+              <updated>2026-09-27T21:44:00Z</updated>
+              $selfLink
+              <link rel="search" type="application/opensearchdescription+xml" href="https://www.gutenberg.org/catalog/osd-books.xml"/>
+            </feed>
+        """.trimIndent()
+        val feed = OPDS1Parser.parse(feedXml.toByteArray(), Url("https://www.gutenberg.org/ebooks/search.opds/")!!).feed!!
+        val client = TestHttpClient(fixtures.bytesAt("gutenberg-osd.xml"))
+
+        return runBlocking { OPDS1Parser.retrieveOpenSearchTemplate(feed, client) }.getOrNull()
+    }
+
+    private class TestHttpClient(private val body: ByteArray) : HttpClient {
+        override suspend fun stream(request: HttpRequest): HttpTry<HttpStreamResponse> =
+            Try.success(
+                HttpStreamResponse(
+                    HttpResponse(
+                        request = request,
+                        url = request.url,
+                        statusCode = HttpStatus.Success,
+                        headers = emptyMap(),
+                        mediaType = null
+                    ),
+                    ByteArrayInputStream(body)
+                )
+            )
     }
 
     private fun parse(filename: String, url: Url = Url("https://example.com")!!): ParseData =

@@ -219,6 +219,8 @@ public class OPDS1Parser {
             return Href(resolved, templated = true)
         }
 
+        private const val DEFAULT_FEED_MEDIA_TYPE = "application/atom+xml"
+
         private val ENCODED_OPENING_BRACE = Regex("%7B", RegexOption.IGNORE_CASE)
         private val ENCODED_CLOSING_BRACE = Regex("%7D", RegexOption.IGNORE_CASE)
 
@@ -226,8 +228,12 @@ public class OPDS1Parser {
             val substrings = mimeTypeString.split(";")
             val type = substrings[0].replace("\\s".toRegex(), "")
             val params: MutableMap<String, String> = mutableMapOf()
-            for (defn in substrings.drop(0)) {
+            // The first substring is the type itself; a parameter without a value is ignored
+            for (defn in substrings.drop(1)) {
                 val halves = defn.split("=")
+                if (halves.size != 2) {
+                    continue
+                }
                 val paramName = halves[0].replace("\\s".toRegex(), "")
                 val paramValue = halves[1].replace("\\s".toRegex(), "")
                 params[paramName] = paramValue
@@ -263,34 +269,21 @@ public class OPDS1Parser {
 
             return client.fetchWithDecoder(HttpRequest(unwrappedURL)) {
                 val document = XmlParser().parse(it.body.inputStream())
-
                 val urls = document.get("Url", Namespaces.Search)
 
-                var typeAndProfileMatch: ElementNode? = null
-                var typeMatch: ElementNode? = null
-
-                selfMimeType?.let { s ->
-
-                    val selfMimeParams = parseMimeType(mimeTypeString = s.toString())
-                    for (url in urls) {
-                        val urlMimeType = url.getAttr("type") ?: continue
-                        val otherMimeParams = parseMimeType(mimeTypeString = urlMimeType)
-                        if (selfMimeParams.type == otherMimeParams.type) {
-                            if (typeMatch == null) {
-                                typeMatch = url
-                            }
-                            if (selfMimeParams.parameters["profile"] == otherMimeParams.parameters["profile"]) {
-                                typeAndProfileMatch = url
-                                break
-                            }
-                        }
-                    }
-                    val match = typeAndProfileMatch ?: (typeMatch ?: urls[0])
-                    val template = match.getAttr("template")
-
-                    template
+                // The results are read as a feed, so a template for results of the feed's own type, and profile if
+                // possible, is preferred to one for, e.g., HTML results
+                val feedMimeParams = parseMimeType(selfMimeType?.toString() ?: DEFAULT_FEED_MEDIA_TYPE)
+                val sameTypeUrls = urls.filter { url ->
+                    url.getAttr("type")?.let { parseMimeType(it).type } == feedMimeParams.type
                 }
-                null
+                val match = sameTypeUrls.firstOrNull { url ->
+                    parseMimeType(url.getAttr("type")!!).parameters["profile"] == feedMimeParams.parameters["profile"]
+                }
+                    ?: sameTypeUrls.firstOrNull()
+                    ?: urls.firstOrNull()
+
+                match?.getAttr("template")
             }.mapFailure { ErrorException(it) }
         }
 
