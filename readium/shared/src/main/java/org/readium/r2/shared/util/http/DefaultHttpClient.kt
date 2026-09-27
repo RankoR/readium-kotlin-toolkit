@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.readium.r2.shared.extensions.joinValues
 import org.readium.r2.shared.extensions.lowerCaseKeys
+import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.DebugError
 import org.readium.r2.shared.util.ThrowableError
 import org.readium.r2.shared.util.Try
@@ -55,6 +56,9 @@ public class DefaultHttpClient(
          * [HttpRequest.extras] key for the number of redirections performed for a request.
          */
         private const val EXTRA_REDIRECT_COUNT: String = "redirectCount"
+
+        /** Request headers whose values are hidden in the logs. */
+        private val SENSITIVE_HEADERS = listOf("Authorization", "Proxy-Authorization", "Cookie")
     }
 
     /**
@@ -130,7 +134,9 @@ public class DefaultHttpClient(
     override suspend fun stream(request: HttpRequest): HttpTry<HttpStreamResponse> {
         suspend fun tryStream(request: HttpRequest): HttpTry<HttpStreamResponse> =
             withContext(Dispatchers.IO) {
-                Timber.i("HTTP ${request.method.name} ${request.url}, headers: ${request.headers.redacted()}")
+                Timber.i(
+                    "HTTP ${request.method.name} ${request.url.redacted()}, headers: ${request.headers.redacted()}"
+                )
 
                 try {
                     var connection = request.toHttpURLConnection()
@@ -300,14 +306,16 @@ public class DefaultHttpClient(
     /** Hides credentials, which must not end up in the logs. */
     private fun Map<String, List<String>>.redacted(): Map<String, List<String>> =
         mapValues { (name, values) ->
-            if (name.equals("Authorization", ignoreCase = true) ||
-                name.equals("Proxy-Authorization", ignoreCase = true)
-            ) {
+            if (SENSITIVE_HEADERS.any { it.equals(name, ignoreCase = true) }) {
                 values.map { "<redacted>" }
             } else {
                 values
             }
         }
+
+    /** Hides the user name and password of a URL like `http://user:password@host/`. */
+    private fun AbsoluteUrl.redacted(): String =
+        toString().replace(Regex("^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/?#@]*@"), "$1<redacted>@")
 
     private val HttpURLConnection.safeHeaders: Map<String, List<String>> get() =
         headerFields.filterNot { (key, value) ->
