@@ -1,3 +1,4 @@
+import { getCssSelector } from "css-selector-generator"
 import { TextQuoteAnchor } from "../vendor/hypothesis/annotator/anchoring/types"
 import { log } from "../util/log"
 
@@ -28,6 +29,42 @@ export class ReflowableMoveBridge {
     }
 
     return null
+  }
+
+  /**
+   * Returns the CSS selector of the first block element visible on the screen, even if
+   * it begins on a previous screen page, or null when there is no such element.
+   */
+  getFirstVisibleElement(vertical: boolean): string | null {
+    const element = this.findFirstVisibleElement(this.document.body, vertical)
+    if (element === this.document.body) {
+      return null
+    }
+
+    return getCssSelector(element)
+  }
+
+  private findFirstVisibleElement(root: Element, vertical: boolean): Element {
+    for (const child of Array.from(root.children)) {
+      if (this.isVisibleBlock(child, vertical)) {
+        return this.findFirstVisibleElement(child, vertical)
+      }
+    }
+    return root
+  }
+
+  private isVisibleBlock(element: Element, vertical: boolean): boolean {
+    const style = getComputedStyle(element)
+    if (style.display != "block" || style.opacity === "0") {
+      return false
+    }
+
+    const rect = element.getBoundingClientRect()
+    if (vertical) {
+      return rect.bottom > 0 && rect.top < window.innerHeight
+    } else {
+      return rect.right > 0 && rect.left < window.innerWidth
+    }
   }
 
   private getOffsetForTextAnchor(

@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.unit.DpSize
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentListOf
@@ -31,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.readium.navigator.common.DecorationController
 import org.readium.navigator.common.HtmlId
 import org.readium.navigator.common.NavigationController
@@ -74,6 +76,7 @@ import org.readium.r2.navigator.preferences.Axis
 import org.readium.r2.navigator.preferences.FontFamily
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.InternalReadiumApi
+import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.RelativeUrl
 import org.readium.r2.shared.util.Url
@@ -291,6 +294,13 @@ public class ReflowableWebRenditionController internal constructor(
 
     public val viewport: ReflowableWebViewport get() =
         navigationDelegate.viewport
+
+    /**
+     * Returns a [Locator] to the first HTML block element visible on the screen, even if it begins
+     * on a previous screen page, or null if the current resource isn't ready.
+     */
+    public suspend fun firstVisibleElementLocator(): Locator? =
+        navigationDelegate.firstVisibleElementLocator()
 }
 
 @OptIn(ExperimentalReadiumApi::class, InternalReadiumApi::class)
@@ -399,6 +409,24 @@ internal class ReflowableNavigationDelegate(
     override val location: ReflowableWebLocation by locationMutable
 
     val viewport: ReflowableWebViewport by viewportMutable
+
+    suspend fun firstVisibleElementLocator(): Locator? {
+        val location = location
+        val moveApi = resourceStates.firstOrNull { it.href == location.href }?.moveApi
+            ?: return null
+        // A web view that left the composition never answers
+        val cssSelector = withTimeoutOrNull(FIRST_VISIBLE_ELEMENT_TIMEOUT) {
+            moveApi.getFirstVisibleElement(overflow.orientation)
+        } ?: return null
+
+        return location.toLocator().let { locator ->
+            locator.copy(
+                locations = locator.locations.copy(
+                    otherLocations = locator.locations.otherLocations + ("cssSelector" to cssSelector.value)
+                )
+            )
+        }
+    }
 
     override suspend fun goTo(url: Url) {
         val location = ReflowableWebGoLocation(
@@ -602,3 +630,5 @@ private fun ReflowableWebPublication.getResourceLocations(
         }
     }
 }
+
+private val FIRST_VISIBLE_ELEMENT_TIMEOUT = 2.seconds

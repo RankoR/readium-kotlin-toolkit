@@ -19,6 +19,7 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import org.readium.navigator.common.Progression
 import org.readium.navigator.web.internals.pager.PageScrollState
+import org.readium.navigator.web.internals.webapi.ReflowableMoveApi
 import org.readium.navigator.web.internals.webview.WebViewScrollController
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.util.Url
@@ -34,6 +35,9 @@ internal class ReflowableResourceState(
     private var pendingGoMutable by mutableStateOf<PendingGo?>(PendingGo(initialLocation))
 
     private var lastComputedProgressionRange: ClosedRange<Progression>? = null
+
+    /** The move API of the resource's web view, once it is available. */
+    var moveApi: ReflowableMoveApi? = null
 
     val pendingLocation: ReflowableResourceLocation? get() =
         pendingGoMutable?.location

@@ -57,6 +57,17 @@ public class ReflowableMoveApi(
         val result = webView.evaluateJavaScriptSuspend(script)
         return result.toDoubleOrNull()?.roundToInt()
     }
+
+    /**
+     * Returns the CSS selector of the first block element visible on the screen, even if it
+     * begins on a previous screen page.
+     */
+    public suspend fun getFirstVisibleElement(orientation: Orientation): CssSelector? =
+        withContext(Dispatchers.Main) {
+            val vertical = orientation == Orientation.Vertical
+            val result = webView.evaluateJavaScriptSuspend("move.getFirstVisibleElement($vertical)")
+            Json.decodeFromString<String?>(result)?.let { CssSelector(it) }
+        }
 }
 
 @Serializable

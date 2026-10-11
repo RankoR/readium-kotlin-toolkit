@@ -164,6 +164,7 @@ internal fun ReflowableResource(
                     },
                     onMoveApiAvailableDelegate = {
                         moveApi = ReflowableMoveApi(webView)
+                        resourceState.moveApi = moveApi
                     }
                 )
                 ReflowableApiStateApi(webView, listener)
