@@ -124,7 +124,35 @@ public class WebViewScrollController(
         )
 
         if (snap) {
-            snap(orientation)
+            snapToNearPageStart(orientation)
+        }
+    }
+
+    /**
+     * Snaps to the start of the page, or of the next one when it's only a few pixels away: the
+     * progression of a page start comes out short of it when the document width changed a little
+     * since the progression was computed, and that must not show the previous page.
+     */
+    private fun snapToNearPageStart(orientation: Orientation) {
+        when (orientation) {
+            Orientation.Vertical -> {
+                val offset = webView.scrollY % webView.height
+                val toNextPage = webView.height - offset
+                if (offset > 0 && toNextPage <= webView.height * PAGE_START_TOLERANCE) {
+                    webView.scrollBy(0, minOf(toNextPage, webView.maxScrollY - webView.scrollY))
+                } else {
+                    webView.scrollBy(0, -offset)
+                }
+            }
+            Orientation.Horizontal -> {
+                val offset = webView.scrollX % webView.width
+                val toNextPage = webView.width - offset
+                if (offset > 0 && toNextPage <= webView.width * PAGE_START_TOLERANCE) {
+                    webView.scrollBy(minOf(toNextPage, webView.maxScrollX - webView.scrollX), 0)
+                } else {
+                    webView.scrollBy(-offset, 0)
+                }
+            }
         }
     }
 
@@ -276,3 +304,5 @@ private fun RelaxedWebView.scrollBy(delta: Offset): Offset {
     scrollBy(roundedX, roundedY)
     return Offset(coercedX, coercedY)
 }
+
+private const val PAGE_START_TOLERANCE = 0.02
