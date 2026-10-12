@@ -101,6 +101,21 @@ internal data class ReadiumCssInjector(
             "\n" + buildList {
                 add(stylesheetLink(afterCss))
 
+                // An image that starts a paragraph is at most as wide as the line, so the first-line indent pushes
+                // it past the edge of the column, into the margin of the next page (the bigger the font size, the
+                // further). The rule is in a layer: a layered `!important` declaration beats the unlayered ones of
+                // Readium CSS, e.g. the user's paragraph indent. A WebView that doesn't know layers or `:has()`
+                // ignores the rule, which is the behavior without it.
+                add(
+                    """
+                <style>
+                    @layer readium-fixes {
+                        p:has(> :is(img, svg):first-child) { text-indent: 0 !important; }
+                    }
+                </style>
+                    """.trimMargin()
+                )
+
                 if (fontsInjectableCss.isNotEmpty()) {
                     add(
                         """
